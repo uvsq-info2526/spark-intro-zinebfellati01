@@ -1,0 +1,130 @@
+= Développer avec les RDD
+
+== Initialiser Spark
+* L'interaction avec Spark débute par la création d'une instance de https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.SparkContext.html[`SparkContext`]
+* Le contexte est créé à partir d'un objet https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.SparkConf.html[`SparkConf`] qui configure l'application
++
+[source,python]
+----
+from pyspark import SparkConf, SparkContext
+
+conf = SparkConf().setMaster("local").setAppName("My app")
+sc = SparkContext(conf=conf)
+----
+
+* Dans un environnement interactif (`pyspark` ou notebook), le contexte est en général créé automatiquement
+** la variable représentant le contexte est nommée `sc`
+
+== Qu'est-ce qu'un RDD ?
+* Un https://www.databricks.com/glossary/what-is-rdd[_Resilient Distributed Datasets_ (RDD)] est une collection partitionnée et immuable d'enregistrements
+* Caractéristiques d'un RDD
+** en lecture seul
+** tolérant aux pannes
+** distribué (partitions réparties sur les nœuds du cluster)
+* La tolérance aux pannes est assurée en maintenant la _lignée_ (_lineage_) de chaque RDD
+* Un RDD n'est pas nécessairement matérialisé (_évaluation paresseuse_)
+* Il est possible de contrôler la https://spark.apache.org/docs/latest/rdd-programming-guide.html#rdd-persistence[_stratégie de stockage_] d'un RDD ainsi que le _critère de partitionnement_ (et le nombre de partitions)
+* Présenté initialement dans https://www.usenix.org/conference/nsdi12/technical-sessions/presentation/zaharia[Resilient Distributed Datasets: A Fault-Tolerant Abstraction for In-Memory Cluster Computing], Matei et al., NSDI'2012.
+
+== Création d'un RDD
+* Un RDD peut être créé à partir d'une collection, de données externes ou d'un autre RDD
+** à partir d'une collection avec `parallelize`
++
+[source,python]
+----
+rdd_from_iterable = sc.parallelize(range(0, 20))
+rdd_from_iterable.takeSample(False, 5)
+----
+** à partir d'un fichier texte avec `textFile`
++
+[source,python]
+----
+rdd_from_file = sc.textFile("README.md")
+rdd_from_file.takeSample(False, 5)
+----
+** à partir d'un fichier binaire (`sequenceFile`, `hadoopRDD`)
+* Spark peut ouvrir directement un répertoire, un fichier compressé ou un ensemble de fichiers
+
+== Opérations sur un RDD
+* Un https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.html[RDD] supporte deux types d'opérations : les _transformations_ et les _actions_
+[horizontal]
+_transformation_:: retourne un nouvel RDD par transformation du RDD courant
+_action_:: déclenche le calcul d'une valeur sur un RDD
+* Certaines opérations supposent un type particulier de RDD :
+contenant des tuples (clé, valeur) (https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.fullOuterJoin.html#pyspark.RDD.fullOuterJoin[fullOuterJoin], …),
+contenant des flottants (https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.mean.html#pyspark.RDD.mean[mean], …)
+* Un RDD peut être rendu persistant (https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.persist.html#pyspark.RDD.persist[`persist`] ou https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.cache.html#pyspark.RDD.cache[`cache`]) pour être réutilisé ultérieurement
+
+== Quelques transformations
+[horizontal]
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.filter.html#pyspark.RDD.filter[`filter`]:: conserve les éléments validant le prédicat
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.map.html#pyspark.RDD.map[`map`]:: applique une fonction sur chaque élément
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.flatMap.html#pyspark.RDD.flatMap[`flatMap`]:: idem `map` mais désimbrique les collections
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.distinct.html#pyspark.RDD.distinct[`distinct`]:: supprime les doublons
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.sample.html#pyspark.RDD.sample[`sample`]:: extrait un échantillon aléatoire
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.groupByKey.html#pyspark.RDD.groupByKey[`groupByKey`]:: regroupe selon les valeurs de clé
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.join.html#pyspark.RDD.join[`join`]:: réalise la jointure entre deux RDDs
+
+== Quelques actions
+[horizontal]
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.reduce.html#pyspark.RDD.reduce[`reduce`]:: applique une fonction de réduction
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.collect.html#pyspark.RDD.collect[`collect`]:: retourne une liste formée des éléments
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.count.html#pyspark.RDD.count[`count`]:: retourne le nombre d'éléments
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.take.html#pyspark.RDD.take[`take`]:: retourne une liste des <n> premiers éléments
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.takeSample.html#pyspark.RDD.takeSample[`takeSample`]:: retourne une liste de <n> éléments
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.saveAsTextFile.html#pyspark.RDD.saveAsTextFile[`saveAsTextFile`]:: sauve les éléments au format texte
+https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.countByKey.html#pyspark.RDD.countByKey[`countByKey`]:: compte le nombre d'occurences de chaque clé
+
+== Exemples
+.la somme des tailles des lignes d'un fichier
+[source,python]
+----
+lines = sc.textFile("README.md") #<1>
+line_lengths = lines.map(lambda s: len(s))  #<2>
+total_length = line_lengths.reduce(lambda a, b: a + b)  #<3>
+----
+<1> https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.SparkContext.textFile.html#pyspark.SparkContext.textFile[`SparkContext.textFile`]: les lignes du fichier `data.txt` sont chargées dans un RDD (`→ pyspark.rdd.RDD[str]`)
+<2> https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.map.html#pyspark.RDD.map[`RDD.map`]: la fonction anonyme est appliquée à chaque élément du RDD (`→ pyspark.rdd.RDD[int]`)
+<3> https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.reduce.html#pyspark.RDD.reduce[`RDD.reduce`]: la fonction anonyme est utilisée pour réduire les éléments du RDD (`→ int`)
+
+.nombre d'occurences de chaque ligne
+[source,python]
+----
+from operator import add
+lines = sc.textFile("README.md")
+pairs = lines.map(lambda s: (s, 1)) #<1>
+counts = pairs.reduceByKey(add) #<2>
+result = sorted(counts.collect()) #<3>
+----
+<1> (`→ pyspark.rdd.RDD[tuple(str, int)]`)
+<2> https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.reduceByKey.html#pyspark.RDD.reduceByKey[`RDD.reduceByKey`]: applique la fonction anonyme aux valeurs associées à chaque clé (`→ pyspark.rdd.RDD[tuple(str, int)]`)
+<3> https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.collect.html#pyspark.RDD.collect[`RDD.collect`]: transforme le RDD en liste Python (`→ pyspark.rdd.RDD[list(tuple(str, int))]`)
+
+== Shuffle
+* Certaines opérations déclenchent un https://spark.apache.org/docs/latest/rdd-programming-guide.html#shuffle-operations[_shuffle_] (mélange)
+** redistribue les données dans les partitions
+** opération coûteuse en terme d'I/O et de communications réseau
+* L'ensemble des calculs sur les RDDs est représenté par un DAG nommé _graphe de lignées_ (_lineage graph_)
+** représente les dépendances entre un RDD parent et un RDD résultat
+* Une dépendance est
+[horizontal]
+_étroite_ (_narrow dependency_):: si chaque partition du RDD résultat est calculée à partir d'une unique partition du RDD parent (`map`, `filter`, `union`)
+_large_ (_wide dependency_):: si les partitions du RDD résultat sont calculées à partir de plusieurs partitions du RDD parent (`groupByKey`, join``)
+
+IMPORTANT: une dependance large implique une redistribution des données et donc des communications réseau.
+
+== Persistance des RDD
+* Un RDD peut être rendu https://spark.apache.org/docs/latest/rdd-programming-guide.html#rdd-persistence[persistant] pour être réutilisé dans plusieurs calculs (https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.persist.html#pyspark.RDD.persist[`persist`] ou https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.cache.html#pyspark.RDD.cache[`cache`])
+** par défaut, un RDD est rendu persistant en mémoire
+* La stratégie de persistance est définie en passant un objet https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.StorageLevel.html#pyspark.StorageLevel[`StorageLevel`] à `persist` (`cache` rend uniquement persistant en mémoire)
+** `MEMORY_ONLY`, `MEMORY_AND_DISK`, `DISK_ONLY`, ...
+
+== Références
+* https://www.usenix.org/conference/nsdi12/technical-sessions/presentation/zaharia[Resilient Distributed Datasets: A Fault-Tolerant Abstraction for In-Memory Cluster Computing], Matei et al., NSDI'2012.
+* https://spark.apache.org/docs/latest/rdd-programming-guide.html[Spark Programming Guide]
+
+== Exercices
+* Ouvrir, exécuter et compléter les cellules des notebooks
+** `notebooks/00_prise_en_main.ipynb`,
+** `notebooks/05_preparation_des_donnees.ipynb` et
+** `notebooks/10_introduction_aux_rdd.ipynb`

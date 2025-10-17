@@ -1,0 +1,159 @@
+= Spark SQL
+== Introduction
+* Spark SQL est un module permettant de traiter des données structurées, i.e. avec un schéma
+* Ce module apporte un ensemble d'optimisations
+* L'interaction peut se faire en SQL ou avec une API spécifique (_dataset_/_dataframe_)
+
+== Dataset et dataframe
+* Un _dataset_ est une collection distribuée de données
+* L'API dataset apporte un typage fort et un moteur d'exécution optimisé
++
+NOTE: Python ne supporte pas l'API dataset
+* Un _dataframe_ est un dataset organisé en colonnes nommées, i.e. comme une table relationnelle ou un data frame en Python/R
+
+== Initialiser une session Spark SQL
+* Il faut d'abord créer une session Spark (https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.SparkSession.html[SparkSession])
+
+[source,python]
+----
+from pyspark.sql import SparkSession
+
+spark = SparkSession \
+    .builder \
+    .appName("Python Spark SQL basic example") \
+    .getOrCreate()
+----
+
+* Dans un environnement interactif (`spark-shell` ou notebook), la session est en général créée automatiquement
+
+== Création d'un dataframe
+* Un dataframe peut être créé à partir de données externes, d'une table Hive ou d'un RDD (en précisant le schéma)
+
+[source,python]
+----
+df = spark.read.json("people.json")
+df.show()
+----
+
+== Opérations sur un dataframe
+* L'https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.html[API dataframe] fournit un DSL (_Domain-Specific Language_) pour manipuler des données structurées
+
+[source,python]
+----
+df.printSchema() # Affiche le format sous la forme d'un arbre
+# root
+# |-- age: long (nullable = true)
+# |-- name: string (nullable = true)
+
+df.select("name").show() # Effectue une projection sur la colonne "name"
+# +-------+
+# |   name|
+# +-------+
+# |Michael|
+# |   Andy|
+# +-------+
+
+df.select(df['name'], df['age'] + 1).show()  # Effectue une projection sur les colonnes "name" et "age"+1
+# +-------+---------+
+# |   name|(age + 1)|
+# +-------+---------+
+# |Michael|     null|
+# |   Andy|       31|
+# +-------+---------+
+
+df.filter(df['age'] > 21).show()  # Effectue une sélection avec le prédicat "age" > 21
+# +---+----+
+# |age|name|
+# +---+----+
+# | 30|Andy|
+# +---+----+
+
+df.groupBy("age").count().show()  # Effectue un regroupement par "age" et une agrégation avec la fonction "count"
+# +----+-----+
+# | age|count|
+# +----+-----+
+# |  19|    1|
+# |null|    1|
+# |  30|    1|
+# +----+-----+
+----
+
+== Création d'un dataset
+* Un dataset peut être créé à partir d'un dataframe ou d'un RDD
++
+NOTE: Python ne supporte pas l'API dataset
+
+[source,scala]
+----
+case class Person(name: String, age: Long)
+val caseClassDS = Seq(Person("Andy", 32)).toDS()
+val peopleDS = spark.read.json("people.json").as[Person]
+peopleDS.show()
+----
+
+* Un dataset utilise un encodeur spécifique pour sérialiser les objets de façon efficace
+** certaines opérations peuvent être réalisées sans désérialiser
+
+== Utiliser SQL
+* SQL est accessible avec la méthode https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.SparkSession.sql.html#pyspark.sql.SparkSession.sql[`SparkSession.sql`]
+* Il faut au préalable avoir enregistrée le dataset comme table
+
+[source,python]
+----
+df.createOrReplaceTempView("people") # Enregistre le DataFrame comme une vue SQL temporaire
+
+sqlDF = spark.sql("SELECT * FROM people")
+sqlDF.show()
+# +----+-------+
+# | age|   name|
+# +----+-------+
+# |null|Michael|
+# |  30|   Andy|
+# |  19| Justin|
+# +----+-------+
+----
+
+== Formats de fichiers supportés
+* Spark SQL peut
+** charger les données à partir d'un fichier avec https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.SparkSession.read.html[`SparkSession.read`]
+** écrire les données dans un fichier avec https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.write.html[`DataFrame.write`]
+* Plusieurs formats de fichiers (_csv_, _json_, https://github.com/apache/parquet-mr/[_parquet_], https://orc.apache.org/docs/spark-config.html[_orc_], …) sont supportés ainsi que différents codecs de compression (_gzip_, _snappy_, …)
+
+.Exemple d'entrée/sorties
+[source,python]
+----
+df = spark.read.load("people.json", format="json")
+df.select("name", "age").write.save("namesAndAges.parquet", format="parquet")
+----
+
+== Optimisation de requêtes
+* Chaque programme utilisant une API de Sparks SQL est traité par l'optimiseur de requête https://databricks.com/blog/2015/04/13/deep-dive-into-spark-sqls-catalyst-optimizer.html[Catalyst]
+
+image::catalyst.png[]
+Source : https://databricks.com/blog/2015/04/13/deep-dive-into-spark-sqls-catalyst-optimizer.html[Deep Dive into Spark SQL’s Catalyst Optimizer]
+
+* Le plan d'exécution d'un programme peut être visualisé avec https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.explain.html[`DataFrame.explain`]
+* Le projet https://databricks.com/blog/2015/04/28/project-tungsten-bringing-spark-closer-to-bare-metal.html[Tungsten] améliore encore les performances en limitant l'impact de la gestion de la mémoire de la JVM, en utilisant les caches et en utilisant la génération de code
+
+== Références
+* https://amplab.cs.berkeley.edu/publication/shark-sql-and-rich-analytics-at-scale/[Shark: SQL and Rich Analytics at Scale], Xin et al., SIGMOD 2013
+* https://amplab.cs.berkeley.edu/publication/spark-sql-relational-data-processing-in-spark/[Spark SQL: Relational Data Processing in Spark], Armbrust et al., SIGMOD 2015
+* https://spark.apache.org/docs/latest/sql-programming-guide.html[Spark SQL, DataFrames and Datasets Guide]
+
+=== Catalyst
+* Cost-Based Optimizer in Apache Spark 2.2 (https://spark-summit.org/2017/events/cost-based-optimizer-in-apache-spark-22/[partie 1], https://spark-summit.org/2017/events/cost-based-optimizer-in-apache-spark-22-continues/[partie 2]), Spark Summit, juin 2017
+* https://spark-summit.org/2017/events/a-deep-dive-into-spark-sqls-catalyst-optimizer/[A deep dive into Spark SQLs Catalyst optimizer], Spark Summit, juin 2017
+* https://spark-summit.org/east-2017/events/sparksql-a-compiler-from-queries-to-rdds/[SparkSQL: A Compiler from Queries to RDDs], Spark Summit, fév. 2017
+* https://spark-summit.org/east-2017/events/optimizing-apache-spark-sql-joins/[Optimizing Apache Spark SQL Joins], Spark Summit, fév. 2017
+* https://databricks.com/blog/2017/02/16/processing-trillion-rows-per-second-single-machine-can-nested-loop-joins-fast.html[Processing a Trillion Rows Per Second on a Single Machine: How Can Nested Loop Joins be this Fast?] - Debugging a failing test case caused by query running “too fast”, fév. 2017
+* Spark SQL versus Apache Drill: Different Tools with Different Rules (https://www.slideshare.net/HadoopSummit/spark-sql-versus-apache-drill-different-tools-with-different-rules[slides], https://www.youtube.com/watch?v=Ud_adu9xNLI[video]), HadoopSummit, juil. 2016
+* http://fr.slideshare.net/databricks/deep-dive-into-catalyst-apache-spark-20s-optimizer[Deep Dive Into Catalyst: Apache Spark 2.0’s Optimizer], juin 2016
+* https://fr.slideshare.net/hkarau/beyond-shuffling-strata-london-2016[Beyond shuffling], Strata London 2016
+* https://blog.deepsense.ai/optimize-spark-with-distribute-by-and-cluster-by/[Optimize Spark with DISTRIBUTE BY & CLUSTER BY], juin 2016
+* https://databricks.com/blog/2015/04/13/deep-dive-into-spark-sqls-catalyst-optimizer.html[Deep Dive into Spark SQL’s Catalyst Optimizer], avr. 2015
+
+=== Projet Tungsten
+* https://databricks.com/blog/2016/05/23/apache-spark-as-a-compiler-joining-a-billion-rows-per-second-on-a-laptop.html[Apache Spark as a Compiler: Joining a Billion Rows per Second on a Laptop], mai 2016
+* https://spark-summit.org/2015/events/keynote-9/[From DataFrames to Tungsten A Peek into Spark’s Future], juin 2015
+* https://databricks.com/blog/2015/04/28/project-tungsten-bringing-spark-closer-to-bare-metal.html[Project Tungsten: Bringing Apache Spark Closer to Bare Metal], avr. 2015
+
